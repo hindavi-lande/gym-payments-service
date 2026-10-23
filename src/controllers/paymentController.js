@@ -18,6 +18,15 @@ async function refund(req, res, next) {
   }
 }
 
+async function setStatus(req, res, next) {
+  try {
+    const payment = await paymentService.setStatus(req.params.id, req.body.status);
+    res.json(payment);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function getById(req, res, next) {
   try {
     const payment = await paymentService.getById(req.params.id);
@@ -39,6 +48,7 @@ async function getHistoryForMember(req, res, next) {
 module.exports = {
   charge,
   refund,
+  setStatus,
   getById,
   getHistoryForMember,
 };
