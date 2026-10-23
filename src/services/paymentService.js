@@ -1,8 +1,12 @@
 const { Payment } = require('../models');
 const ApiError = require('../utils/ApiError');
 
-async function charge({ memberId, amount, reason }) {
-  return Payment.create({ memberId, amount, reason, type: 'CHARGE', status: 'SUCCESS' });
+async function charge({ memberId, amount, reason, status = 'SUCCESS' }) {
+  const validStatuses = Payment.rawAttributes.status.values;
+  if (!validStatuses.includes(status)) {
+    throw new ApiError(400, `status ${status} is not a valid payment status`);
+  }
+  return Payment.create({ memberId, amount, reason, type: 'CHARGE', status });
 }
 
 async function refund({ memberId, amount, reason, relatedPaymentId }) {

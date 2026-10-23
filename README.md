@@ -29,7 +29,7 @@ Listens on `http://localhost:3001` (configurable via `PORT`) so it can run along
 ## Endpoints
 
 - `GET /api/health` — liveness check
-- `POST /api/payments/charge` — `{ "memberId", "amount", "reason" }` — records a successful charge
+- `POST /api/payments/charge` — `{ "memberId", "amount", "reason", "status" }` — records a charge; `status` is optional and defaults to `SUCCESS`, but may be any of `SUCCESS` / `FAILED` / `PENDING` so a declined charge can be recorded (anything else is a `400`)
 - `POST /api/payments/refund` — `{ "memberId", "amount", "reason", "relatedPaymentId" }` — records a refund; if `relatedPaymentId` is given it must reference an existing `CHARGE` for that same member, or `422`
 - `GET /api/payments/member/:memberId` — full payment history for a member, most recent first
 - `GET /api/payments/:id` — get one payment (`404` if missing)
