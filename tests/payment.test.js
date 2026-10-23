@@ -56,6 +56,32 @@ describe('POST /api/payments/charge', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('records a charge with status FAILED when the caller asks for a decline', async () => {
+    const res = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, status: 'FAILED' });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      memberId: 1,
+      type: 'CHARGE',
+      status: 'FAILED',
+    });
+  });
+
+  it('rejects a charge with an unknown status', async () => {
+    const res = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, status: 'PENDING' });
+
+    expect(res.status).toBe(400);
+
+    const history = await request(app).get('/api/payments/member/1');
+
+    expect(history.status).toBe(200);
+    expect(history.body).toEqual([]);
+  });
 });
 
 describe('POST /api/payments/refund', () => {
