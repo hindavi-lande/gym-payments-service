@@ -1,7 +1,10 @@
 const { Payment } = require('../models');
 const ApiError = require('../utils/ApiError');
 
-async function charge({ memberId, amount, reason }) {
+async function charge({ memberId, amount, reason, decline }) {
+  if (decline) {
+    throw new ApiError(402, 'Payment declined');
+  }
   return Payment.create({ memberId, amount, reason, type: 'CHARGE', status: 'SUCCESS' });
 }
 

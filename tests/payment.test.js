@@ -56,6 +56,20 @@ describe('POST /api/payments/charge', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('declines a flagged charge and records nothing', async () => {
+    const res = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, decline: true });
+
+    expect(res.status).toBe(402);
+    expect(res.body.message).toBe('Payment declined');
+
+    const history = await request(app).get('/api/payments/member/1');
+
+    expect(history.status).toBe(200);
+    expect(history.body).toEqual([]);
+  });
 });
 
 describe('POST /api/payments/refund', () => {
