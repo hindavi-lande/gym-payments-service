@@ -56,6 +56,26 @@ describe('POST /api/payments/charge', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('returns 402 when the charge is declined', async () => {
+    const res = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, simulateDecline: true });
+
+    expect(res.status).toBe(402);
+    expect(res.body.message).toMatch(/declined/i);
+  });
+
+  it('persists nothing when the charge is declined', async () => {
+    await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, simulateDecline: true });
+
+    const history = await request(app).get('/api/payments/member/1');
+
+    expect(history.status).toBe(200);
+    expect(history.body).toEqual([]);
+  });
 });
 
 describe('POST /api/payments/refund', () => {

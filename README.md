@@ -29,7 +29,7 @@ Listens on `http://localhost:3001` (configurable via `PORT`) so it can run along
 ## Endpoints
 
 - `GET /api/health` — liveness check
-- `POST /api/payments/charge` — `{ "memberId", "amount", "reason" }` — records a successful charge
+- `POST /api/payments/charge` — `{ "memberId", "amount", "reason", "simulateDecline" }` — records a successful charge. `simulateDecline: true` makes the charge fail with `402` and writes no payment row; this flag is a temporary stand-in for an issuer/gateway decision (there is no gateway integration yet) and will be removed once a real gateway is wired in. Callers that omit it behave exactly as before.
 - `POST /api/payments/refund` — `{ "memberId", "amount", "reason", "relatedPaymentId" }` — records a refund; if `relatedPaymentId` is given it must reference an existing `CHARGE` for that same member, or `422`
 - `GET /api/payments/member/:memberId` — full payment history for a member, most recent first
 - `GET /api/payments/:id` — get one payment (`404` if missing)

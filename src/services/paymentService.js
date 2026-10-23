@@ -1,7 +1,10 @@
 const { Payment } = require('../models');
 const ApiError = require('../utils/ApiError');
 
-async function charge({ memberId, amount, reason }) {
+async function charge({ memberId, amount, reason, simulateDecline }) {
+  if (simulateDecline) {
+    throw new ApiError(402, 'Payment declined by issuer');
+  }
   return Payment.create({ memberId, amount, reason, type: 'CHARGE', status: 'SUCCESS' });
 }
 
