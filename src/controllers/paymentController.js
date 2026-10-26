@@ -3,7 +3,8 @@ const paymentService = require('../services/paymentService');
 async function charge(req, res, next) {
   try {
     const payment = await paymentService.charge(req.body);
-    res.status(201).json(payment);
+    const statusCode = payment.status === 'FAILED' ? 402 : 201;
+    res.status(statusCode).json(payment);
   } catch (err) {
     next(err);
   }
