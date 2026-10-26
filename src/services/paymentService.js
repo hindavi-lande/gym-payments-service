@@ -30,9 +30,40 @@ async function getHistoryForMember(memberId) {
   });
 }
 
+const SPEND_WINDOW_MONTHS = 12;
+
+async function getSpendForMember(memberId) {
+  const payments = await Payment.findAll({
+    where: { memberId, status: 'SUCCESS' },
+  });
+
+  const windowStart = new Date();
+  windowStart.setMonth(windowStart.getMonth() - SPEND_WINDOW_MONTHS);
+
+  const spend = payments.reduce((total, payment) => {
+    // Each row is dated by its own createdAt, so a refund falls in the window
+    // it actually happened in, not the window of the charge it reverses.
+    if (new Date(payment.createdAt) < windowStart) {
+      return total;
+    }
+
+    const amount = Number(payment.amount);
+    if (payment.type === 'CHARGE') {
+      return total + amount;
+    }
+    if (payment.type === 'REFUND') {
+      return total - amount;
+    }
+    return total;
+  }, 0);
+
+  return Math.round(spend * 100) / 100;
+}
+
 module.exports = {
   charge,
   refund,
   getById,
   getHistoryForMember,
+  getSpendForMember,
 };

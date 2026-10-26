@@ -159,6 +159,103 @@ describe('GET /api/payments/member/:memberId', () => {
   });
 });
 
+describe('GET /api/payments/member/:memberId/spend', () => {
+  function monthsAgo(months) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - months);
+    return date;
+  }
+
+  function backDatedPayment(fields, months) {
+    const when = monthsAgo(months);
+    return Payment.create(
+      { status: 'SUCCESS', ...fields, createdAt: when, updatedAt: when },
+      { silent: true },
+    );
+  }
+
+  it('reports the spend from successful charges', async () => {
+    await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99 });
+
+    const res = await request(app).get('/api/payments/member/1/spend');
+
+    expect(res.status).toBe(200);
+    expect(res.body.memberId).toBe(1);
+    expect(typeof res.body.spend).toBe('number');
+    expect(res.body.spend).toBeCloseTo(49.99, 2);
+  });
+
+  it('subtracts successful refunds from the spend', async () => {
+    const charge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 100 });
+
+    await request(app).post('/api/payments/refund').send({
+      memberId: 1,
+      amount: 30,
+      relatedPaymentId: charge.body.id,
+    });
+
+    const res = await request(app).get('/api/payments/member/1/spend');
+
+    expect(res.status).toBe(200);
+    expect(res.body.spend).toBeCloseTo(70, 2);
+  });
+
+  it('ignores PENDING and FAILED charges and refunds', async () => {
+    await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 50 });
+
+    await Payment.create({ memberId: 1, amount: 25, type: 'CHARGE', status: 'PENDING' });
+    await Payment.create({ memberId: 1, amount: 25, type: 'CHARGE', status: 'FAILED' });
+    await Payment.create({ memberId: 1, amount: 10, type: 'REFUND', status: 'PENDING' });
+    await Payment.create({ memberId: 1, amount: 10, type: 'REFUND', status: 'FAILED' });
+
+    const res = await request(app).get('/api/payments/member/1/spend');
+
+    expect(res.status).toBe(200);
+    expect(res.body.spend).toBeCloseTo(50, 2);
+  });
+
+  it('excludes rows older than 12 months and includes rows dated 11 months back', async () => {
+    await backDatedPayment({ memberId: 1, amount: 500, type: 'CHARGE' }, 13);
+    await backDatedPayment({ memberId: 1, amount: 40, type: 'CHARGE' }, 11);
+    await backDatedPayment({ memberId: 1, amount: 15, type: 'REFUND' }, 13);
+
+    const res = await request(app).get('/api/payments/member/1/spend');
+
+    expect(res.status).toBe(200);
+    expect(res.body.spend).toBeCloseTo(40, 2);
+  });
+
+  it('reports a negative spend when refunds within the window exceed charges', async () => {
+    const charge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 20 });
+
+    await request(app).post('/api/payments/refund').send({
+      memberId: 1,
+      amount: 50,
+      relatedPaymentId: charge.body.id,
+    });
+
+    const res = await request(app).get('/api/payments/member/1/spend');
+
+    expect(res.status).toBe(200);
+    expect(res.body.spend).toBeCloseTo(-30, 2);
+  });
+
+  it('reports zero spend for a member with no qualifying payments', async () => {
+    const res = await request(app).get('/api/payments/member/999999/spend');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ memberId: 999999, spend: 0 });
+  });
+});
+
 describe('GET /api/payments/:id', () => {
   it('gets a payment by id', async () => {
     const charge = await request(app)
