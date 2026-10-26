@@ -30,9 +30,26 @@ async function getHistoryForMember(memberId) {
   });
 }
 
+function parseMemberId(value, fieldName) {
+  const id = Number(value);
+  if (value === undefined || value === null || value === '' || !Number.isInteger(id) || id <= 0) {
+    throw new ApiError(400, `${fieldName} must be a positive integer`);
+  }
+  return id;
+}
+
+async function mergePayments({ fromMemberId, toMemberId }) {
+  const fromId = parseMemberId(fromMemberId, 'fromMemberId');
+  const toId = parseMemberId(toMemberId, 'toMemberId');
+
+  const [moved] = await Payment.update({ memberId: toId }, { where: { memberId: fromId } });
+  return { moved };
+}
+
 module.exports = {
   charge,
   refund,
   getById,
   getHistoryForMember,
+  mergePayments,
 };

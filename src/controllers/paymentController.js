@@ -36,9 +36,19 @@ async function getHistoryForMember(req, res, next) {
   }
 }
 
+async function merge(req, res, next) {
+  try {
+    const result = await paymentService.mergePayments(req.body);
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   charge,
   refund,
   getById,
   getHistoryForMember,
+  merge,
 };

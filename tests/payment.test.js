@@ -159,6 +159,137 @@ describe('GET /api/payments/member/:memberId', () => {
   });
 });
 
+describe('POST /api/payments/merge', () => {
+  it('moves every payment from the duplicate member to the kept member', async () => {
+    const keptCharge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 2, amount: 49.99, reason: 'PREMIUM plan renewal' });
+    const duplicateCharge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 30, reason: 'duplicate account charge' });
+
+    const res = await request(app)
+      .post('/api/payments/merge')
+      .send({ fromMemberId: 1, toMemberId: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ moved: 1 });
+
+    const sourceHistory = await request(app).get('/api/payments/member/1');
+    expect(sourceHistory.status).toBe(200);
+    expect(sourceHistory.body).toEqual([]);
+
+    const destinationHistory = await request(app).get('/api/payments/member/2');
+    expect(destinationHistory.status).toBe(200);
+    expect(destinationHistory.body).toHaveLength(2);
+    expect(destinationHistory.body.map((p) => p.id).sort()).toEqual(
+      [keptCharge.body.id, duplicateCharge.body.id].sort()
+    );
+  });
+
+  it('keeps the details of the moved payments, including a refund link to its charge', async () => {
+    const charge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, reason: 'PREMIUM plan renewal' });
+    const refund = await request(app).post('/api/payments/refund').send({
+      memberId: 1,
+      amount: 20,
+      reason: 'early cancellation',
+      relatedPaymentId: charge.body.id,
+    });
+
+    const res = await request(app)
+      .post('/api/payments/merge')
+      .send({ fromMemberId: 1, toMemberId: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ moved: 2 });
+
+    const history = await request(app).get('/api/payments/member/2');
+    expect(history.body).toHaveLength(2);
+
+    const movedCharge = history.body.find((p) => p.id === charge.body.id);
+    expect(movedCharge).toMatchObject({
+      memberId: 2,
+      type: 'CHARGE',
+      status: 'SUCCESS',
+      reason: 'PREMIUM plan renewal',
+    });
+    expect(Number(movedCharge.amount)).toBeCloseTo(49.99);
+
+    const movedRefund = history.body.find((p) => p.id === refund.body.id);
+    expect(movedRefund).toMatchObject({
+      memberId: 2,
+      type: 'REFUND',
+      status: 'SUCCESS',
+      reason: 'early cancellation',
+      relatedPaymentId: charge.body.id,
+    });
+    expect(Number(movedRefund.amount)).toBeCloseTo(20);
+
+    const sourceHistory = await request(app).get('/api/payments/member/1');
+    expect(sourceHistory.body).toEqual([]);
+  });
+
+  it('orders the combined history most recent first', async () => {
+    await request(app).post('/api/payments/charge').send({ memberId: 2, amount: 10 });
+    await request(app).post('/api/payments/charge').send({ memberId: 1, amount: 20 });
+
+    const res = await request(app)
+      .post('/api/payments/merge')
+      .send({ fromMemberId: 1, toMemberId: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ moved: 1 });
+
+    const history = await request(app).get('/api/payments/member/2');
+    expect(history.body).toHaveLength(2);
+    const timestamps = history.body.map((p) => new Date(p.createdAt).getTime());
+    expect(timestamps[0]).toBeGreaterThanOrEqual(timestamps[1]);
+  });
+
+  it('rejects a merge with missing or invalid member ids and leaves payments untouched', async () => {
+    const charge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99 });
+
+    const invalidBodies = [
+      {},
+      { toMemberId: 2 },
+      { fromMemberId: 1 },
+      { fromMemberId: 0, toMemberId: 2 },
+      { fromMemberId: 1, toMemberId: -5 },
+      { fromMemberId: 'not-a-number', toMemberId: 2 },
+    ];
+
+    for (const body of invalidBodies) {
+      const res = await request(app).post('/api/payments/merge').send(body);
+      expect(res.status).toBe(400);
+    }
+
+    const sourceHistory = await request(app).get('/api/payments/member/1');
+    expect(sourceHistory.body).toHaveLength(1);
+    expect(sourceHistory.body[0].id).toBe(charge.body.id);
+  });
+
+  it('returns moved 0 when the duplicate member has no payments', async () => {
+    const charge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 3, amount: 12.5 });
+
+    const res = await request(app)
+      .post('/api/payments/merge')
+      .send({ fromMemberId: 1, toMemberId: 2 });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ moved: 0 });
+
+    const history = await request(app).get('/api/payments/member/3');
+    expect(history.body).toHaveLength(1);
+    expect(history.body[0].id).toBe(charge.body.id);
+  });
+});
+
 describe('GET /api/payments/:id', () => {
   it('gets a payment by id', async () => {
     const charge = await request(app)

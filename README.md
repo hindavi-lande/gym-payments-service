@@ -31,6 +31,7 @@ Listens on `http://localhost:3001` (configurable via `PORT`) so it can run along
 - `GET /api/health` — liveness check
 - `POST /api/payments/charge` — `{ "memberId", "amount", "reason" }` — records a successful charge
 - `POST /api/payments/refund` — `{ "memberId", "amount", "reason", "relatedPaymentId" }` — records a refund; if `relatedPaymentId` is given it must reference an existing `CHARGE` for that same member, or `422`
+- `POST /api/payments/merge` — `{ "fromMemberId", "toMemberId" }` — reassigns every payment recorded against `fromMemberId` to `toMemberId` and responds `200 { "moved": <count> }`; a missing or non-positive `fromMemberId`/`toMemberId` is rejected with `400`. Used by `gym-membership-service` when merging a duplicate member account; the merged payments keep their type, amount, status, reason and `relatedPaymentId`
 - `GET /api/payments/member/:memberId` — full payment history for a member, most recent first
 - `GET /api/payments/:id` — get one payment (`404` if missing)
 
