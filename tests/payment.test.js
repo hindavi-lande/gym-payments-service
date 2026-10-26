@@ -56,6 +56,42 @@ describe('POST /api/payments/charge', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('records a declined charge as FAILED and responds 402', async () => {
+    const res = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99, status: 'FAILED' });
+
+    expect(res.status).toBe(402);
+    expect(res.body).toMatchObject({
+      memberId: 1,
+      type: 'CHARGE',
+      status: 'FAILED',
+    });
+
+    const persisted = await request(app).get(`/api/payments/${res.body.id}`);
+
+    expect(persisted.status).toBe(200);
+    expect(persisted.body.id).toBe(res.body.id);
+    expect(persisted.body.status).toBe('FAILED');
+  });
+
+  it('includes a declined charge in the member payment history', async () => {
+    const charge = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 49.99 });
+    const declined = await request(app)
+      .post('/api/payments/charge')
+      .send({ memberId: 1, amount: 39.99, status: 'FAILED' });
+
+    const history = await request(app).get('/api/payments/member/1');
+
+    expect(history.status).toBe(200);
+    expect(history.body.map((p) => p.id).sort()).toEqual(
+      [charge.body.id, declined.body.id].sort(),
+    );
+    expect(history.body.find((p) => p.id === declined.body.id).status).toBe('FAILED');
+  });
 });
 
 describe('POST /api/payments/refund', () => {
