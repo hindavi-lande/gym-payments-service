@@ -13,7 +13,8 @@ async function charge(req, res, next) {
 async function refund(req, res, next) {
   try {
     const payment = await paymentService.refund(req.body);
-    res.status(201).json(payment);
+    const statusCode = payment.status === 'PENDING' ? 202 : 201;
+    res.status(statusCode).json(payment);
   } catch (err) {
     next(err);
   }
@@ -22,6 +23,15 @@ async function refund(req, res, next) {
 async function getById(req, res, next) {
   try {
     const payment = await paymentService.getById(req.params.id);
+    res.json(payment);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function settle(req, res, next) {
+  try {
+    const payment = await paymentService.settleRefund(req.params.id, req.body);
     res.json(payment);
   } catch (err) {
     next(err);
@@ -41,5 +51,6 @@ module.exports = {
   charge,
   refund,
   getById,
+  settle,
   getHistoryForMember,
 };
